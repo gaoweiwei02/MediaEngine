@@ -1,0 +1,18 @@
+﻿
+1. 押金管理的操作列放在最前面，不要有那种移入显示的效果。
+
+本来是为了达到防止误点的效果， 备忘
+
+                var panel = $('#dg').datagrid('getPanel');
+                $(panel).find('.datagrid-body tr').each(function (){
+
+                    var links = $(this).find('a');
+                    $(links).hide();
+                    $(this).hover(function (){
+                            $(links).show();
+                        }, function () {
+                            $(links).hide();
+                        }
+                    );
+
+
