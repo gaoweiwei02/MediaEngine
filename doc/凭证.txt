@@ -1,0 +1,64 @@
+﻿
+
+1. 设置FENTRYID
+    
+    LINQ sort and update
+
+        var recordsAddSeq = records.OrderBy(v => v.FDC).ToList<VoucherRecord>();
+        int i = 0;
+        recordsAddSeq.ForEach(v => v.FENTRYID = i++);
+
+2014年1月27日15:00
+
+2. 注意点，财务的权限使用对账账套进行约束的。
+需要在后台sp中进行过滤。记录在basic.tbr_Role_Proof
+
+
+    SELECT RP.PayCompanyID FROM basic.tbr_User_Role UR
+    JOIN basic.tbb_Role AS R ON UR.RoleID = R.RoleID 
+    JOIN basic.tbr_Role_Proof RP ON R.RoleID = RP.RoleID
+    WHERE UR.UserID = 1
+
+2014年1月27日15:24
+
+3. 付款和退款可以只导出选中的#############################################
+
+
+4.郑州、兰州分众分析、西安、石家庄、天津、山西、长春、哈尔滨导出凭证 #############################################
+媒体资源(代码：00；名称：公共） ==>
+媒体资源(媒体资源（支付主体））
+
+
+5.资源类型进行归并
+
+非卖场统一为楼宇
+
+2014年1月27日17:36
+
+
+6. 修改日期控件，只显示年月
+
+       $.fn.datebox.defaults.formatter = function(date) {
+        var y = date.getFullYear();
+        var m = date.getMonth() + 1;
+        return  y + '/' + (m < 10 ? '0' + m : m) ;
+      };
+    检查年月的输入
+      var planMonth = $("#dlgSearchPP #planMonth").datebox('getValue');
+      if (!fwo2.check.checkYM(planMonth))
+      {
+          $.messager.alert('查询','请输入正确的计划年月！');
+          return;
+      }
+2014年1月27日17:36
+
+
+7. 导出凭证时插入历史表 #############################################
+
+
+8. 历史导出记录的显示和重复下载 #############################################
+
+
+9. string resourceType = row["FItemCode"].ToString();
+出错
+
