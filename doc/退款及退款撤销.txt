@@ -10,5 +10,42 @@ ValidStatus的判断有误，应该判断为-1的为已撤销，现在错误地�
 期望达到： 退款时，能够自动带出退款的账号，而且能够修改。
 
 
+    var queryLink = '@Url.Action("GetPaymentDetail", "Payment")';
+        var payCompanyID = $("input[name^='PayCompanyID']", '#dlgSearchFD').val();
+        if (payCompanyID && payCompanyID.length > 0) {
+            queryLink += '?payCompanyId=' + payCompanyID;
+        } else {
+            $.messager.alert('批量付款','请先选择付费主体进行查询!');
+            return;
+        }
+
+        $.getJSON(queryLink, function (data) {
+            var items = [];
+            $.each(data, function(index, subjects) {
+                if (subjects.SubjectId.substring(0, 4) == "1002")
+                    items.push('<option value="' + subjects.BankSubjectId +'" BankName= "' + subjects.BankName + '" >' + subjects.SubjectId + '</li>');
+            });
+
+            $('#ddlBankSubject', '#dlgPlanPayBatchPay').html(items.join(''));
+            $("#ddlBankSubject", '#dlgPlanPayBatchPay').trigger('change');
+        });
+
+
+
+
+
 3. 日期统一为width 75px
 
+
+2014年1月27日
+
+
+4. 退款、撤销退款的灰色标记，只修改了列表里，点开合同明细，上面一排的退款、撤销退款也应是一样的灰色表记。
+
+退款
+  if (row.FeeType != "EA040004" && row.ActualPayMethod != "押金抵扣" && actualPayAmount > returnAmount)
+
+
+撤销付款
+
+  if (!row.IsClosed && returnAmount == 0)
