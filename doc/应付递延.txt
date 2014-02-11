@@ -30,7 +30,7 @@ SET @ToDate = '20131231'   -- TEST
 
 CREATE TABLE #Payable (ContractID  BIGINT, Amount DECIMAL(18, 6))
 CREATE TABLE #Payment (ContractID  BIGINT, Amount DECIMAL(18, 6))
-CREATE TABLE #RefundPayment (ContractID  BIGINT, Amount DECIMAL(18, 6))
+--CREATE TABLE #RefundPayment (ContractID  BIGINT, Amount DECIMAL(18, 6))
 CREATE TABLE #Refund (ContractID  BIGINT, Amount DECIMAL(18, 6))
 CREATE TABLE #Amortize (ContractID  BIGINT, Amount DECIMAL(18, 6))
 
@@ -69,7 +69,7 @@ GROUP BY A.ContractID
 
 INSERT INTO #Payment ( ContractID, Amount )
  
-SELECT C.ContractID, SUM(PP.PaidAmount) FROM media.tbb_PayBill PB
+SELECT C.ContractID, SUM(PB.PayAmount) FROM media.tbb_PayBill PB
 JOIN media.tbb_PayPlan PP ON PB.PlanPayID = PP.PlanPayID
 JOIN media.tbb_Contract C ON PB.ContractID = C.ContractID
 
@@ -80,16 +80,16 @@ AND PB.PayDate <= @ToDate
 GROUP BY C.ContractID
    
    
-INSERT INTO #RefundPayment( ContractID, Amount )
-SELECT PP.ContractID, SUM(RB.ReturnAmount)  FROM media.tbb_ReturnBill RB
-JOIN media.tbb_PayBill PB ON RB.PayBillID = PB.PayBillID
-JOIN media.tbb_PayPlan PP ON PB.PlanPayID = PP.PlanPayID
-WHERE RB.ValidStatus >= 0
-AND PB.ValidStatus >= 0
-AND PP.ValidStatus >= 0
-AND PP.FeeType  = 'EA040001'
-AND PB.PayDate <= @ToDate
-GROUP BY PP.ContractID
+--INSERT INTO #RefundPayment( ContractID, Amount )
+--SELECT PP.ContractID, SUM(RB.ReturnAmount)  FROM media.tbb_ReturnBill RB
+--JOIN media.tbb_PayBill PB ON RB.PayBillID = PB.PayBillID
+--JOIN media.tbb_PayPlan PP ON PB.PlanPayID = PP.PlanPayID
+--WHERE RB.ValidStatus >= 0
+--AND PB.ValidStatus >= 0
+--AND PP.ValidStatus >= 0
+--AND PP.FeeType  = 'EA040001'
+--AND PB.PayDate <= @ToDate
+--GROUP BY PP.ContractID
 
 INSERT INTO #Refund ( ContractID, Amount )
 SELECT PP.ContractID, SUM(RB.ReturnAmount)  FROM media.tbb_ReturnBill RB
@@ -168,22 +168,21 @@ GROUP BY CA.ContractID
     ), 1, 1, '')  
    
 
---  --应付余额 ＝ 应付 - 已付 - 因退款而销掉的已付 + 退款      
- , PaymentBalance =  ISNULL(PP.amount, 0) - ISNULL(PB.amount, 0) - ISNULL(RP.amount, 0) + ISNULL(R.amount, 0)      
+--  --应付余额 ＝ 应付 - 已付  + 退款      
+ , PaymentBalance =  ISNULL(PP.amount, 0) - ISNULL(PB.amount, 0) + ISNULL(R.amount, 0)      
 --  -- 递延余额 ＝ 摊销 - 应付        
  , DeferredBalance = (ISNULL(A.amount, 0) - ISNULL(PB.amount, 0))   
 
 
 , Payable = ISNULL(PP.amount, 0)     
 , Payment = ISNULL(PB.amount, 0)   
-, RefundPayment = ISNULL(RP.amount, 0)  
+--, RefundPayment = ISNULL(RP.amount, 0)  
 , Refund = ISNULL(R.amount, 0)     
 , Amortize = ISNULL(A.amount, 0)  
    
     FROM media.tbb_Contract C
    LEFT JOIN #Payable PP ON C.ContractID = PP.ContractID
    LEFT JOIN #Payment PB ON C.ContractID = PB.ContractID
-   LEFT JOIN  #RefundPayment RP ON C.ContractID = RP.ContractID
    LEFT JOIN  #Refund R ON C.ContractID = R.ContractID
    LEFT JOIN  #Amortize A ON C.ContractID = A.ContractID
    
@@ -195,11 +194,11 @@ GROUP BY CA.ContractID
    WHERE C.DealStatus >= 0
    
      and 
-  (((ISNULL(PP.amount, 0) - ISNULL(PB.amount, 0) - ISNULL(RP.amount, 0) + ISNULL(R.amount, 0))<>0) 
+  (((ISNULL(PP.amount, 0) - ISNULL(PB.amount, 0)  + ISNULL(R.amount, 0))<>0) 
   OR ((ISNULL(A.amount, 0) - ISNULL(PP.amount, 0))<>0) )
       
 
-DROP TABLE #Payable, #Payment, #RefundPayment, #Refund, #Amortize
+DROP TABLE #Payable, #Payment, #Refund, #Amortize
 
 
 --SELECT ContractID, COUNT(*) FROM  media.tbr_Contract_Vendor
