@@ -1,0 +1,223 @@
+
+DECLARE @ToDate   DATETIME
+DECLARE @SettledDate  DATETIME  
+
+DECLARE @FDate DATETIME
+DECLARE @NextFDate DATETIME
+
+DECLARE @SettledYM  INT 
+
+SELECT @SettledYM = MAX(AmortizeYear*100 + AmortizeMonth) FROM media.tbs_CostAmortize
+WHERE IsClose = 1
+AND AmortizeType = 'S'
+
+SELECT @SettledDate = DATEADD(DAY, -1, DATEADD(month, 1, CAST(@SettledYM AS CHAR(6)) + '01' ))
+
+
+
+SET @ToDate = '20131231'   -- TEST
+ 
+  SET @FDate = DATEADD(DAY, 1, @SettledDate)      
+  SET @NextFDate = DATEADD(MONTH, 1, @FDate)  
+
+
+-- SELECT @SettledDate, @FDate, @NextFDate
+
+
+
+-- 应付款
+
+
+CREATE TABLE #Payable (ContractID  BIGINT, Amount DECIMAL(18, 6))
+CREATE TABLE #Payment (ContractID  BIGINT, Amount DECIMAL(18, 6))
+CREATE TABLE #RefundPayment (ContractID  BIGINT, Amount DECIMAL(18, 6))
+CREATE TABLE #Refund (ContractID  BIGINT, Amount DECIMAL(18, 6))
+CREATE TABLE #Amortize (ContractID  BIGINT, Amount DECIMAL(18, 6))
+
+ 
+INSERT INTO #Payable( ContractID, Amount )
+
+SELECT A.ContractID, SUM(A.PayAmount) FROM (
+SELECT C.ContractID
+, PlanPayDate = CASE WHEN PP.ChargePayDate IS NULL AND PP.PlanPayDate <= @SettledDate THEN @NextFDate
+					 WHEN PP.ChargePayDate = @FDate THEN @NextFDate
+					 ELSE ISNULL(PP.ChargePayDate, PlanPayDate) END 
+, PP.PayAmount
+ FROM media.tbb_Contract C
+JOIN media.tbb_PayPlan PP ON C.ContractID = PP.ContractID
+WHERE 
+C.ValidStatus >= 0
+AND C.IsSignFinished = 0
+AND PP.ValidStatus >= 0
+AND PP.FeeType = 'EA040001'
+
+UNION ALL 
+
+SELECT C.ContractID
+, PlanPayDate = CASE WHEN ISNULL(PP.ChargePayDate, '19000101') < PP.PlanPayDate THEN PP.PlanPayDate ELSE PP.ChargePayDate END       
+, PP.PayAmount
+ FROM media.tbb_Contract C
+JOIN media.tbb_PayPlan PP ON C.ContractID = PP.ContractID
+WHERE 
+C.ValidStatus >= 0
+AND C.IsSignFinished = 1
+AND PP.ValidStatus >= 0
+AND PP.FeeType = 'EA040001'
+) A 
+WHERE A.PlanPayDate <= @ToDate
+GROUP BY A.ContractID
+
+INSERT INTO #Payment ( ContractID, Amount )
+ 
+SELECT C.ContractID, SUM(PP.PaidAmount) FROM media.tbb_PayBill PB
+JOIN media.tbb_PayPlan PP ON PB.PlanPayID = PP.PlanPayID
+JOIN media.tbb_Contract C ON PB.ContractID = C.ContractID
+
+WHERE PB.ValidStatus >= 0
+AND PP.ValidStatus >= 0
+AND PP.FeeType  = 'EA040001'
+AND PB.PayDate <= @ToDate  
+GROUP BY C.ContractID
+   
+   
+INSERT INTO #RefundPayment( ContractID, Amount )
+SELECT PP.ContractID, SUM(RB.ReturnAmount)  FROM media.tbb_ReturnBill RB
+JOIN media.tbb_PayBill PB ON RB.PayBillID = PB.PayBillID
+JOIN media.tbb_PayPlan PP ON PB.PlanPayID = PP.PlanPayID
+WHERE RB.ValidStatus >= 0
+AND PB.ValidStatus >= 0
+AND PP.ValidStatus >= 0
+AND PP.FeeType  = 'EA040001'
+AND PB.PayDate <= @ToDate
+GROUP BY PP.ContractID
+
+INSERT INTO #Refund ( ContractID, Amount )
+SELECT PP.ContractID, SUM(RB.ReturnAmount)  FROM media.tbb_ReturnBill RB
+JOIN media.tbb_PayBill PB ON RB.PayBillID = PB.PayBillID
+JOIN media.tbb_PayPlan PP ON PB.PlanPayID = PP.PlanPayID
+WHERE RB.ValidStatus >= 0
+AND PB.ValidStatus >= 0
+AND PP.ValidStatus >= 0
+AND PP.FeeType  = 'EA040001'
+AND RB.ReturnDate <= @ToDate
+GROUP BY PP.ContractID
+
+INSERT INTO #Amortize  ( ContractID, Amount )
+SELECT CA.ContractID, SUM(AmortizeAmount) FROM media.tbs_CostAmortize CA
+WHERE CA.AmortizeType IN ('S', 'F')
+AND (CA.AmortizeYear * 100 + CA.AmortizeMonth) <= @SettledYM
+AND CA.IsClose = 1
+GROUP BY CA.ContractID
+     
+
+   SELECT 
+	C.ContractID
+	, C.ContractCode
+	, C.MainContractCode
+	, C.IsSignFinished
+	, C.SignFinishedDate
+	, C.RentAmount
+	, C.PerformBeginDate
+	, C.PerformEndDate
+	, DealStatus =  case when C.DealStatus = 1 then '编辑'
+     when C.DealStatus = 2 then '合同待审'
+     when C.DealStatus = 3 then '执行中'
+     when C.DealStatus = 11 then '变更编辑'
+     when C.DealStatus = 4 then '变更待审'
+     when C.DealStatus = 5 then '冻结审核'
+     when C.DealStatus = 6 then '冻结'
+     when C.DealStatus = 7 then '解冻审核'
+     when C.DealStatus = 8 then '终止审核'
+     when C.DealStatus = 9 then '终止'
+     when C.DealStatus = 10 then '续签'
+     else '无效' END 
+--    , c.compensating_price1      
+--  , c.begin_time1      
+--  , c.end_time1      
+--  , C.state      
+--     , C.contract_type    
+,PR1.ResourceName  --, C.DisplayType -- 液晶，数码  
+--     , C.contract_shuxing     
+,PR2.ResourceName   --, C.ContractType 
+--     , C.sign_state  
+,PR3.ResourceName   --, C.SignKind    
+--  , C.own_company     
+ , C.PayCompanyName
+--  , C.sign_company      
+, C.SignCompanyName
+--  , C.match_account  
+, C.CheckAccount  
+
+
+
+	,C.ItemID
+	,C.ItemName
+	, C.DeveloperName
+	, C.OperatorName
+	, C.DeptName
+  
+  , PropertyCorp = 
+  
+  STUFF(
+    (
+      SELECT ',' + CV.VendorName
+      FROM media.tbr_Contract_Vendor CV
+		WHERE CV.ContractID = C.ContractID AND CV.ValidStatus >= 0
+      FOR XML PATH(''),TYPE
+      ).value('.','VARCHAR(MAX)'
+    ), 1, 1, '')  
+   
+
+--  --应付余额 ＝ 应付 - 已付 - 因退款而销掉的已付 + 退款      
+ , PaymentBalance =  ISNULL(PP.amount, 0) - ISNULL(PB.amount, 0) - ISNULL(RP.amount, 0) + ISNULL(R.amount, 0)      
+--  -- 递延余额 ＝ 摊销 - 应付        
+ , DeferredBalance = (ISNULL(A.amount, 0) - ISNULL(PB.amount, 0))   
+
+
+, Payable = ISNULL(PP.amount, 0)     
+, Payment = ISNULL(PB.amount, 0)   
+, RefundPayment = ISNULL(RP.amount, 0)  
+, Refund = ISNULL(R.amount, 0)     
+, Amortize = ISNULL(A.amount, 0)  
+   
+    FROM media.tbb_Contract C
+   LEFT JOIN #Payable PP ON C.ContractID = PP.ContractID
+   LEFT JOIN #Payment PB ON C.ContractID = PB.ContractID
+   LEFT JOIN  #RefundPayment RP ON C.ContractID = RP.ContractID
+   LEFT JOIN  #Refund R ON C.ContractID = R.ContractID
+   LEFT JOIN  #Amortize A ON C.ContractID = A.ContractID
+   
+   LEFT JOIN   basic.tbd_PubResource PR1 ON PR1.ResourceTypeCode = 'EA_tb_b_FramediaView' AND PR1.ResourceCode = C.DisplayType 
+   LEFT JOIN   basic.tbd_PubResource PR2 ON PR2.ResourceTypeCode = 'EA112' AND PR2.ResourceCode = C.ContractType 
+   LEFT JOIN   basic.tbd_PubResource PR3 ON PR3.ResourceTypeCode = 'EA034' AND PR3.ResourceCode = C.SignKind 
+    
+
+   WHERE C.DealStatus >= 0
+   
+     and 
+  (((ISNULL(PP.amount, 0) - ISNULL(PB.amount, 0) - ISNULL(RP.amount, 0) + ISNULL(R.amount, 0))<>0) 
+  OR ((ISNULL(A.amount, 0) - ISNULL(PP.amount, 0))<>0) )
+      
+
+DROP TABLE #Payable, #Payment, #RefundPayment, #Refund, #Amortize
+
+
+--SELECT ContractID, COUNT(*) FROM  media.tbr_Contract_Vendor
+--GROUP BY ContractID
+--HAVING COUNT(*) > 1
+
+
+
+--1:编辑
+--2:合同待审
+--3:执行中
+--11:变更编辑
+--4:变更待审
+--5:冻结审核
+--6:冻结
+--7:解冻审核
+--8:终止审核
+--9:终止
+--10.续签
+
+ 
